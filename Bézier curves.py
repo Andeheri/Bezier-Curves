@@ -6,7 +6,7 @@ import numpy as np
 from math import sqrt, sin, cos
 from ctypes import windll
 from scipy.special import binom as binomial
-from time import sleep
+import time
 
 windll.user32.SetProcessDPIAware() # Ignores scaling on the PC
 py.display.init()
@@ -49,6 +49,7 @@ class Button:
                     button.shell = black
     
     def click(self):
+        global change
         mouse_pos = py.mouse.get_pos()
         for button in self.buttons:
             if button.collide(mouse_pos):
@@ -67,36 +68,71 @@ class Button:
                         case 1:
                             Curve.mode = "Preview"
                         case 2:
+                            if Curve.mode != "Edit":
+                                Curve.lines = None
                             Curve.mode = "Edit"
 
 
 class Animation:
+    interval = 0.1
     def __init__(self, curve, radius) -> None:
-        
-        points = np.array([np.array([self.random_point(point, radius) for point in curve.points]) for i in range(100)])
-        for line in points:
-            a = curve.B(line).astype(int)
-            color = (np.array(curve.color) * np.random.uniform(0.3, 1, 1)).astype(int)
-            # self.path = curve.B(points)
-            for i, point in enumerate(a[1:]):
-                py.draw.line(screen, color, a[i], point, 3)
-                "Anti-aliased line: https://stackoverflow.com/questions/30578068/pygame-draw-anti-aliased-thick-line"
-        py.display.update()
-        sleep(5)
-        quit()
-    
+        self.time = time.time()
+        self.curve = curve
+        self.radius = radius
+        line = np.array([self.random_point(point, radius) for point in curve.points])
+        self.particles = [Particle(curve.B(line).astype(int), (np.array(curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, 0)]
+
     def random_point(self, point, radius):
         theta = np.random.uniform(0, 2 * np.pi, 1)
         r = np.random.uniform(0, 1, 1) * radius
         x, y = point[0] + r[0] * cos(theta[0]), point[1] + r[0] * sin(theta[0])
         return [(x, y)]
+    
+    def draw(self):
+        for particle in self.particles:
+            particle.update_pos()
+        if time.time() - self.time > self.interval:
+            self.time = time.time()
+            for i in range(randint(1,7)):
+                line = np.array([self.random_point(point, self.radius) for point in curve.points])
+                self.particles.append(Particle(self.curve.B(line).astype(int), (np.array(self.curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, len(self.particles)))
 
+
+class Particle():
+    base = 25
+    base_speed = 1
+    def __init__(self, path, color, parent, index) -> None:
+        self.parent_index = index
+        self.parent = parent
+        self.path = path
+        self.points = [path[0], path[1]]
+        self.index = 1
+        self.color = color
+        self.speed = np.random.uniform(1, 2) * self.base_speed
+        self.trail_lenght = self.base * self.speed
+    
+    def update_pos(self):
+        self.index += self.speed
+        var = int(self.index)
+        for i, point in enumerate(self.points[1:]):
+            py.draw.line(screen, self.color, self.points[i], point, 1)
+        if var - 1 < len(self.path) - 1:
+            self.points.append(self.path[var])
+        if len(self.points) > self.base or var > len(self.path):
+            self.points = self.points[int(self.speed):]
+        if not len(self.points):
+            self.parent.particles.pop(self.parent.particles.index(self))
 
 
 class Curve:
-    n = 500 # Number of lines
+    n = 300 # Number of lines per line
     limit = 200 # Everything is perfext with the explisit formula
     mode = "Edit"
+    curves = []
+    lines = None
+    elapsed_time = 0
+    fps = 1 / 120
+    update = True
 
     t_values = np.array([np.array((i, i)) for i in np.linspace(0, 1, n)])
     ones = np.array([np.array((i, i)) for i in np.ones(n)])
@@ -104,13 +140,14 @@ class Curve:
     border = 20
     rect = Rect(border, border, screen_size[0] - 2 * border, int(screen_size[1] * 0.85))
     
-    def __init__(self) -> None:
+    def __init__(self):
         self.n = Curve.n
         self.points = []
         self.color = white
         self.clicked = False
         self.thickness = 3
         self.line = []
+        self.curves.append(self)
 
 
     @staticmethod
@@ -162,7 +199,7 @@ class Curve:
                             self.points = self.points[:-1]
                         holding = True
                 elif event.type == py.MOUSEBUTTONUP:
-                    if self.rect.collidepoint(py.mouse.get_pos()):
+                    if self.rect.collidepoint(py.mouse.get_pos()) and self.mode == "Edit":
                         if event.button == 1 and holding:
                             pos = py.mouse.get_pos()
                             if len(self.points) == self.limit:
@@ -179,11 +216,18 @@ class Curve:
             if not self.rect.collidepoint(py.mouse.get_pos()):
                 holding = False
             if self.mode == "Edit":
+                self.lines = None
                 self.bézier([py.mouse.get_pos()] if holding else [])
                 for point in self.points + [py.mouse.get_pos()] if holding else self.points:
                     self.draw_point(point, 3, white)
             elif self.mode == "Preview":
-                line = Animation(self, 25)
+                if self.lines == None:
+                    self.lines = [Animation(curve, 25) for curve in self.curves]
+                if time.time() - self.elapsed_time > self.fps:
+                    self.elapsed_time = time.time()
+                    for line in self.lines:
+                        line.draw()
+                    self.update = True
             # Buttons
             mouse_pos = py.mouse.get_pos()
             Button.updateborder(Button, mouse_pos)
@@ -192,8 +236,11 @@ class Curve:
 
             py.draw.rect(screen, black, self.rect, 2, 10)
             
-
-            py.display.update()
+            if self.mode == "Edit":
+                py.display.update()
+            elif self.mode == "Preview" and self.update:
+                py.display.update()
+                self.update = False
 
 
 black = (0, 0, 0)
@@ -202,8 +249,9 @@ grey = (39, 40, 40)
 white_a = (255, 255, 255, 150)
 white = (255, 255, 255)
 blue = (0, 220, 180)
+red = np.array((50, 5, 2))
 
-colors = [Button((int(screen_size[0] / 5 * i), int(screen_size[1] * 0.93)), (50, 40 * i, int(60 / 2 * i)), 0) for i in range(1, 5)]
+colors = [Button((int(screen_size[0] / 5 * i), int(screen_size[1] * 0.93)), (red * i).astype(int), 0) for i in range(1, 5)]
 modes = [Button((screen_size[0] - 50, int(screen_size[1] * 0.93)), black, 1), Button((screen_size[0] - 150, int(screen_size[1] * 0.93)), dark_grey, 2)]
 modes[1].clicked = True
 modes[1].shell = white
