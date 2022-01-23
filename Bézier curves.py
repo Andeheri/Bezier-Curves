@@ -79,7 +79,8 @@ class Animation:
         self.time = time.time()
         self.curve = curve
         self.radius = radius
-        line = np.array([self.random_point(point, radius) for point in curve.points])
+        # With random start- and end-points: line = np.array([self.random_point(point, radius) for point in curve.points])
+        line = np.array([curve.points[0]] + [self.random_point(point, radius) for point in curve.points[1:-1]] + [curve.points[-1]])
         self.particles = [Particle(curve.B(line).astype(int), (np.array(curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, 0)]
 
     def random_point(self, point, radius):
@@ -93,8 +94,9 @@ class Animation:
             particle.update_pos()
         if time.time() - self.time > self.interval:
             self.time = time.time()
-            for i in range(randint(1,7)):
-                line = np.array([self.random_point(point, self.radius) for point in curve.points])
+            for i in range(randint(3,10)):
+                # With random start- and end-points: line = np.array([self.random_point(point, self.radius) for point in curve.points])
+                line = np.array([curve.points[0]] + [self.random_point(point, self.radius) for point in curve.points[1:-1]] + [curve.points[-1]])
                 self.particles.append(Particle(self.curve.B(line).astype(int), (np.array(self.curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, len(self.particles)))
 
 
@@ -248,10 +250,10 @@ dark_grey = (20, 20, 20)
 grey = (39, 40, 40)
 white_a = (255, 255, 255, 150)
 white = (255, 255, 255)
-blue = (0, 220, 180)
+blue = np.array((0, 44, 36))
 red = np.array((50, 5, 2))
 
-colors = [Button((int(screen_size[0] / 5 * i), int(screen_size[1] * 0.93)), (red * i).astype(int), 0) for i in range(1, 5)]
+colors = [Button((int(screen_size[0] / 5 * i), int(screen_size[1] * 0.93)), (blue * i).astype(int), 0) for i in range(1, 5)]
 modes = [Button((screen_size[0] - 50, int(screen_size[1] * 0.93)), black, 1), Button((screen_size[0] - 150, int(screen_size[1] * 0.93)), dark_grey, 2)]
 modes[1].clicked = True
 modes[1].shell = white
