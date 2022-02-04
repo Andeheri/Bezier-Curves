@@ -197,14 +197,14 @@ class Curve:
                     if event.key == py.K_ESCAPE:
                         quit()
                 if event.type == py.KEYUP:
-                    if event.key == py.K_RIGHT and self.mode == "Edit":
-                        print(self.color)
+                    if event.key == py.K_RIGHT and self.mode == "Edit" and len(self.points):
                         if (i := self.curves.index(self)) == len(self.curves) - 1:
                             curve_2 = Curve()
                             curve_2.color = Button.color
                             curve_2.main()
                         else:
                             self.curves[i + 1].main()
+
                     elif event.key == py.K_LEFT and self.mode == "Edit":
                         if not (i := self.curves.index(self)) == 0:
                             self.curves[i - 1].main()
@@ -233,15 +233,19 @@ class Curve:
             if self.mode == "Edit":
                 self.lines = None
                 for line in self.curves:
-                    if line == self:
-                        self.bézier([py.mouse.get_pos()] if holding else [])
-                    else:
-                        line.bézier([])
+                    if len(line.points):
+                        if line == self:
+                            self.bézier([py.mouse.get_pos()] if holding else [])
+                        else:
+                            line.bézier([])
                 for point in self.points + [py.mouse.get_pos()] if holding else self.points:
                     self.draw_point(point, 3, white)
             elif self.mode == "Preview":
                 if self.lines == None:
-                    self.lines = [Animation(curve, 25) for curve in self.curves]
+                    if len(self.curves[-1].points) > 1:
+                        self.lines = [Animation(curve, 25) for curve in self.curves]
+                    else:
+                        self.lines = [Animation(curve, 25) for curve in self.curves[:-1]] if len(self.curves) else []
                 if time.time() - self.elapsed_time > self.fps:
                     self.elapsed_time = time.time()
                     for line in self.lines:
