@@ -48,7 +48,7 @@ class Button:
                 else:
                     button.shell = black
     
-    def click(self):
+    def click(self, a):
         global change
         mouse_pos = py.mouse.get_pos()
         for button in self.buttons:
@@ -56,6 +56,7 @@ class Button:
                 if not button.type and Curve.mode == "Edit":
                     button.clicked = True
                     Button.color = button.color
+                    a.color = button.color
                     for button_2 in colors:
                         if button_2 != button:
                             button_2.clicked = False
@@ -96,7 +97,7 @@ class Animation:
             self.time = time.time()
             for i in range(randint(3,10)):
                 # With random start- and end-points: line = np.array([self.random_point(point, self.radius) for point in curve.points])
-                line = np.array([curve.points[0]] + [self.random_point(point, self.radius) for point in curve.points[1:-1]] + [curve.points[-1]])
+                line = np.array([self.curve.points[0]] + [self.random_point(point, self.radius) for point in self.curve.points[1:-1]] + [self.curve.points[-1]])
                 self.particles.append(Particle(self.curve.B(line).astype(int), (np.array(self.curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, len(self.particles)))
 
 
@@ -110,7 +111,7 @@ class Particle():
         self.points = [path[0], path[1]]
         self.index = 1
         self.color = color
-        self.speed = np.random.uniform(1, 2) * self.base_speed
+        self.speed = np.random.uniform(1, self.parent.curve.n / 300 * 2) * self.base_speed
         self.trail_lenght = self.base * self.speed
     
     def update_pos(self):
@@ -127,7 +128,7 @@ class Particle():
 
 
 class Curve:
-    n = 300 # Number of lines per line
+    n = 150 # Number of lines per curve
     limit = 200 # Everything is perfext with the explisit formula
     mode = "Edit"
     curves = []
@@ -195,6 +196,18 @@ class Curve:
                 if event.type == py.KEYDOWN:
                     if event.key == py.K_ESCAPE:
                         quit()
+                if event.type == py.KEYUP:
+                    if event.key == py.K_RIGHT and self.mode == "Edit":
+                        print(self.color)
+                        if (i := self.curves.index(self)) == len(self.curves) - 1:
+                            curve_2 = Curve()
+                            curve_2.color = Button.color
+                            curve_2.main()
+                        else:
+                            self.curves[i + 1].main()
+                    elif event.key == py.K_LEFT and self.mode == "Edit":
+                        if not (i := self.curves.index(self)) == 0:
+                            self.curves[i - 1].main()
                 if event.type == py.MOUSEBUTTONDOWN:
                     if event.button == 1 and self.rect.collidepoint(py.mouse.get_pos()):
                         if len(self.points) == self.limit:
@@ -213,13 +226,17 @@ class Curve:
                             self.points = self.points[:-1]
                     else:
                         holding = False
-                        Button.click(Button)
-            self.color = Button.color
+                        Button.click(Button, self)
+            
             if not self.rect.collidepoint(py.mouse.get_pos()):
                 holding = False
             if self.mode == "Edit":
                 self.lines = None
-                self.bézier([py.mouse.get_pos()] if holding else [])
+                for line in self.curves:
+                    if line == self:
+                        self.bézier([py.mouse.get_pos()] if holding else [])
+                    else:
+                        line.bézier([])
                 for point in self.points + [py.mouse.get_pos()] if holding else self.points:
                     self.draw_point(point, 3, white)
             elif self.mode == "Preview":
@@ -237,7 +254,6 @@ class Curve:
                 button.draw()
 
             py.draw.rect(screen, black, self.rect, 2, 10)
-            
             if self.mode == "Edit":
                 py.display.update()
             elif self.mode == "Preview" and self.update:
