@@ -75,14 +75,17 @@ class Button:
 
 
 class Animation:
-    interval = 0.1
+    interval = 0.15
+    n = 100
     def __init__(self, curve, radius) -> None:
         self.time = time.time()
         self.curve = curve
         self.radius = radius
+        self.lines = [np.array([curve.points[0]] + [self.random_point(point, radius) for point in curve.points[1:-1]] + [curve.points[-1]]) for i in range(self.n)]
+        self.paths = [curve.B(line).astype(int) for line in self.lines]
         # With random start- and end-points: line = np.array([self.random_point(point, radius) for point in curve.points])
-        line = np.array([curve.points[0]] + [self.random_point(point, radius) for point in curve.points[1:-1]] + [curve.points[-1]])
-        self.particles = [Particle(curve.B(line).astype(int), (np.array(curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, 0)]
+        # line = np.array([curve.points[0]] + [self.random_point(point, radius) for point in curve.points[1:-1]] + [curve.points[-1]])
+        self.particles = [Particle(self.paths[randint(0, self.n - 1)], (np.array(curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, 0)]
 
     def random_point(self, point, radius):
         theta = np.random.uniform(0, 2 * np.pi, 1)
@@ -95,10 +98,10 @@ class Animation:
             particle.update_pos()
         if time.time() - self.time > self.interval:
             self.time = time.time()
-            for i in range(randint(3,10)):
+            for i in range(randint(4,7)):
                 # With random start- and end-points: line = np.array([self.random_point(point, self.radius) for point in curve.points])
-                line = np.array([self.curve.points[0]] + [self.random_point(point, self.radius) for point in self.curve.points[1:-1]] + [self.curve.points[-1]])
-                self.particles.append(Particle(self.curve.B(line).astype(int), (np.array(self.curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, len(self.particles)))
+                # line = np.array([self.curve.points[0]] + [self.random_point(point, self.radius) for point in self.curve.points[1:-1]] + [self.curve.points[-1]])
+                self.particles.append(Particle(self.paths[randint(0, self.n - 1)], (np.array(self.curve.color) * np.random.uniform(0.3, 1, 1)).astype(int), self, len(self.particles)))
 
 
 class Particle():
@@ -112,7 +115,7 @@ class Particle():
         self.index = 1
         self.color = color
         self.speed = np.random.uniform(1, self.parent.curve.n / 300 * 2) * self.base_speed
-        self.trail_lenght = self.base * self.speed
+        self.trail_lenght = self.base / self.speed
     
     def update_pos(self):
         self.index += self.speed
@@ -121,7 +124,7 @@ class Particle():
             py.draw.line(screen, self.color, self.points[i], point, 1)
         if var - 1 < len(self.path) - 1:
             self.points.append(self.path[var])
-        if len(self.points) > self.base or var > len(self.path):
+        if len(self.points) > self.trail_lenght or var > len(self.path):
             self.points = self.points[int(self.speed):]
         if not len(self.points):
             self.parent.particles.pop(self.parent.particles.index(self))
@@ -198,16 +201,20 @@ class Curve:
                         quit()
                 if event.type == py.KEYUP:
                     if event.key == py.K_RIGHT and self.mode == "Edit" and len(self.points):
+                        # Creates a new curve or goes to the next one
                         if (i := self.curves.index(self)) == len(self.curves) - 1:
                             curve_2 = Curve()
                             curve_2.color = Button.color
                             curve_2.main()
                         else:
                             self.curves[i + 1].main()
-
                     elif event.key == py.K_LEFT and self.mode == "Edit":
+                        # Goes to the previous curve
                         if not (i := self.curves.index(self)) == 0:
                             self.curves[i - 1].main()
+                    elif event.key == py.K_DELETE:
+                        # Clears out points
+                        self.points = []
                 if event.type == py.MOUSEBUTTONDOWN:
                     if event.button == 1 and self.rect.collidepoint(py.mouse.get_pos()):
                         if len(self.points) == self.limit:
